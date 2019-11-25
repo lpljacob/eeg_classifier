@@ -1,3 +1,12 @@
+% Input data: one three-dimensional array file per subject named subdata[number].mat
+% Array consists of electrodes x timepoints (one voltage value per electrode per timepoint) x trials.
+% Each subject also needs a separate vector with trial info named trialinfo[number].mat
+% Vector length must be equal to third dimension of subdata
+
+% -------------------------------------------------------------------------    
+%                                  SET UP
+% -------------------------------------------------------------------------
+
 n = 20; % number of subjects
 folder = 'D:\Experiment data\ERP Priming\Word Priming Delayed\svm files\'; % trial data location
 f_save = 'C:\Users\UMass\OneDrive\_zGrad\_ERP PRIMING PROJECT\SVM\results\';
@@ -8,14 +17,21 @@ setaside = 5; % trials per condition per subject to set aside for testing
 
 version = 2;
 % 1 - all time bins
-% 2 - all time bins but one
-save_weights = 1;
+% 2 - individual time bins
+
+save_weights = 1; % wether or not to save weight vectors
 
 % preallocate space for data
 alldata = nan(896,500,20);
 alltrialinfo = nan(1,500,20);
 
-% DATA PREPROCESSING
+% experiment specific: condition coding
+condition_pairs = [13 14 15 16 9 10 11 12];
+
+% -------------------------------------------------------------------------    
+%                             PREPROCESSING
+% -------------------------------------------------------------------------
+
 for i = 1:n
     
     % load subject data and set up variables
@@ -48,14 +64,13 @@ end
 % get labels of interest
 all_labels = nan(size(alltrialinfo));
 
+% experiment specific
 all_labels(alltrialinfo<9)=-1; % Same choice
 all_labels(alltrialinfo>8)=+1; % Different choice
 
 % -------------------------------------------------------------------------    
 %                           SET ASIDE TEST DATA
 % -------------------------------------------------------------------------
-
-condition_pairs = [13 14 15 16 9 10 11 12]; % see bin for cond info
 
 % TRAINING AND TESTING LOOP
 % samples data multiple times for reliability
@@ -76,18 +91,15 @@ allweights = nan(vector_size, loops);
 
 for tp = 1:timewinds  % only run the outer loop when doing version 2
     
-    tp_start = (tp-1)*64+1;
-    tp_end = tp_start+63;
+    tp_start = (tp-1)*electrodes+1;
+    tp_end = tp_start+electrodes-1;
     
     for k = 1:loops
 
         % preallocate space
         traindata = [];
         trainlabels = [];
-        testdata = nan(896, 5, 8, 20);
-        if version == 2
-            testdata = nan(electrodes, 5, 8, 20);
-        end
+        testdata = nan(vector_size, 5, 8, 20);
         testlabels = nan(1, 5, 8, 20);
 
         rng('shuffle')
@@ -162,14 +174,14 @@ for tp = 1:timewinds  % only run the outer loop when doing version 2
             allweights(:, k) = wts;
         end
         
-        fprintf('loop %d of timewindow %d done \n', k, tp)
+        if version == 2
+            fprintf('loop %d of timewindow %d done \n', k, tp)
+        else
+            fprintf('loop %d done \n', k)
+        end
 
     end
 
-% meansubacc = mean(subsacc, 3);
-% save([f_save sprintf('subs_time%d.mat',tp)], 'meansubacc');
-% meancondacc = mean(condacc, 3);
-% save([f_save sprintf('conds_time%d.mat',tp)], 'meancondacc');
 if save_weights == 1
     meanwts = mean(allweights, 2);
     save([f_save sprintf('weights_time%d.mat',tp)], 'meanwts');
